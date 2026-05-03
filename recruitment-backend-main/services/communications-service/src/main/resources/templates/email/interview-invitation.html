@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thư mời phỏng vấn</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #f39c12;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        .message {
+            font-size: 16px;
+            margin-bottom: 20px;
+            text-align: justify;
+        }
+        .highlight {
+            background-color: #fef9e7;
+            padding: 20px;
+            border-left: 4px solid #f39c12;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .interview-details {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #f39c12;
+            color: white;
+            padding: 12px 25px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .button:hover {
+            background-color: #e67e22;
+        }
+        .invitation {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #f39c12;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">Công ty Tuyển dụng</div>
+        </div>
+        
+        <div class="content">
+            <div class="greeting">Xin chào <span th:text="${candidateName}">Tên ứng viên</span>,</div>
+            
+            <div class="invitation">
+                🎯 THƯ MỜI PHỎNG VẤN 🎯
+            </div>
+            
+            <div class="highlight">
+                <p>Chúng tôi rất vui mừng mời bạn tham gia buổi phỏng vấn cho vị trí <strong th:text="${jobTitle}">Tên vị trí</strong> tại công ty chúng tôi.</p>
+            </div>
+            
+            <div class="interview-details">
+                <h3>📅 Chi tiết buổi phỏng vấn:</h3>
+                <ul>
+                    <li><strong>Ngày & Giờ:</strong> <span th:text="${interviewDate}">Ngày phỏng vấn</span></li>
+                    <li><strong>Hình thức:</strong> <span th:text="${interviewType}">Loại phỏng vấn</span></li>
+                    <li><strong>Địa điểm:</strong> <span th:text="${location}">Địa điểm</span></li>
+                    <li th:if="${meetingLink}"><strong>Link phòng họp:</strong> <a th:href="${meetingLink}" th:text="${meetingLink}">Link phòng họp</a></li>
+                </ul>
+            </div>
+            
+            <div class="message" th:if="${description}">
+                <strong>Thông tin bổ sung:</strong><br>
+                <span th:text="${description}">Mô tả</span>
+            </div>
+            
+            <div class="message">
+                Vui lòng xác nhận tham gia bằng cách trả lời email này hoặc liên hệ với chúng tôi qua thông tin liên lạc được cung cấp.
+            </div>
+            
+            <div class="message">
+                Chúng tôi rất mong được gặp bạn!
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Trân trọng,<br>
+            <strong><span th:text="${interviewerName}">Tên người phỏng vấn</span></strong><br>
+            <span th:text="${companyName}">Tên công ty</span></p>
+            <p>Email: hr@company.com | Điện thoại: (024) 1234-5678</p>
+            <p>Địa chỉ: 123 Đường ABC, Quận XYZ, Hà Nội</p>
+        </div>
+    </div>
+</body>
+</html>
+
+

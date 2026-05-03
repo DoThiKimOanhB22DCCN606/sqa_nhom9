@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chúc mừng bạn đã được chọn!</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #27ae60;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        .message {
+            font-size: 16px;
+            margin-bottom: 20px;
+            text-align: justify;
+        }
+        .highlight {
+            background-color: #d5f4e6;
+            padding: 20px;
+            border-left: 4px solid #27ae60;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .congratulations {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #27ae60;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #27ae60;
+            color: white;
+            padding: 12px 25px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .button:hover {
+            background-color: #229954;
+        }
+        .next-steps {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">Công ty Tuyển dụng</div>
+        </div>
+        
+        <div class="content">
+            <div class="greeting">Xin chào {candidateName},</div>
+            
+            <div class="congratulations">
+                🎉 CHÚC MỪNG! 🎉
+            </div>
+            
+            <div class="highlight">
+                <p>Chúng tôi rất vui mừng thông báo rằng bạn đã được chọn cho vị trí <strong>{jobTitle}</strong> tại công ty chúng tôi!</p>
+            </div>
+            
+            <div class="message">
+                Sau quá trình đánh giá kỹ lưỡng, chúng tôi đã quyết định chọn bạn vì những kỹ năng, kinh nghiệm và tiềm năng phát triển mà bạn thể hiện.
+            </div>
+            
+            <div class="next-steps">
+                <h3>Bước tiếp theo:</h3>
+                <ul>
+                    <li>Chúng tôi sẽ liên hệ với bạn trong vòng 2-3 ngày làm việc để thảo luận chi tiết về vị trí</li>
+                    <li>Chuẩn bị các giấy tờ cần thiết cho quá trình onboarding</li>
+                    <li>Thời gian bắt đầu làm việc dự kiến: {startDate}</li>
+                </ul>
+            </div>
+            
+            <div class="message">
+                Chúng tôi tin rằng bạn sẽ là một thành viên tuyệt vời trong đội ngũ và đóng góp tích cực cho sự phát triển của công ty.
+            </div>
+            
+            <div class="message">
+                Một lần nữa, chúc mừng bạn và chào đón bạn đến với gia đình của chúng tôi!
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Trân trọng,<br>
+            <strong>Đội ngũ Tuyển dụng</strong><br>
+            Công ty Tuyển dụng</p>
+            <p>Email: hr@company.com | Điện thoại: (024) 1234-5678</p>
+            <p>Địa chỉ: 123 Đường ABC, Quận XYZ, Hà Nội</p>
+        </div>
+    </div>
+</body>
+</html>

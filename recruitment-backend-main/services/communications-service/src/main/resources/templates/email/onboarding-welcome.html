@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chào mừng bạn đến với công ty!</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        .message {
+            font-size: 16px;
+            margin-bottom: 20px;
+            text-align: justify;
+        }
+        .highlight {
+            background-color: #e8f4fd;
+            padding: 20px;
+            border-left: 4px solid #3498db;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .welcome {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #3498db;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #3498db;
+            color: white;
+            padding: 12px 25px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .button:hover {
+            background-color: #2980b9;
+        }
+        .onboarding-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .checklist {
+            background-color: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">Công ty Tuyển dụng</div>
+        </div>
+        
+        <div class="content">
+            <div class="greeting">Xin chào {candidateName},</div>
+            
+            <div class="welcome">
+                🎊 CHÀO MỪNG BẠN ĐẾN VỚI CÔNG TY! 🎊
+            </div>
+            
+            <div class="highlight">
+                <p>Chúng tôi rất vui mừng chào đón bạn trở thành thành viên mới của đội ngũ {department} với vị trí <strong>{jobTitle}</strong>!</p>
+            </div>
+            
+            <div class="message">
+                Ngày đầu tiên làm việc của bạn sẽ là <strong>{startDate}</strong> tại địa chỉ <strong>{officeAddress}</strong>.
+            </div>
+            
+            <div class="onboarding-info">
+                <h3>📋 Thông tin Onboarding:</h3>
+                <ul>
+                    <li><strong>Thời gian:</strong> {startDate} lúc 9:00 sáng</li>
+                    <li><strong>Địa điểm:</strong> {officeAddress}</li>
+                    <li><strong>Người phụ trách:</strong> {hrContact}</li>
+                    <li><strong>Email liên hệ:</strong> {hrEmail}</li>
+                </ul>
+            </div>
+            
+            <div class="checklist">
+                <h3>✅ Danh sách chuẩn bị:</h3>
+                <ul>
+                    <li>CMND/CCCD bản gốc và bản sao</li>
+                    <li>Bằng cấp, chứng chỉ liên quan (bản sao có công chứng)</li>
+                    <li>Ảnh 3x4 (2 tấm)</li>
+                    <li>Sổ khám sức khỏe (nếu có)</li>
+                    <li>Thông tin tài khoản ngân hàng</li>
+                </ul>
+            </div>
+            
+            <div class="message">
+                Trong ngày đầu tiên, bạn sẽ được:
+                <ul>
+                    <li>Giới thiệu về công ty và văn hóa doanh nghiệp</li>
+                    <li>Hướng dẫn về quy trình làm việc</li>
+                    <li>Gặp gỡ đồng nghiệp và cấp trên</li>
+                    <li>Nhận thiết bị và tài khoản làm việc</li>
+                </ul>
+            </div>
+            
+            <div class="message">
+                Nếu bạn có bất kỳ câu hỏi nào, đừng ngần ngại liên hệ với chúng tôi qua email hoặc điện thoại.
+            </div>
+            
+            <div class="message">
+                Chúng tôi tin rằng bạn sẽ có những trải nghiệm tuyệt vời và đóng góp tích cực cho sự phát triển của công ty!
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Trân trọng,<br>
+            <strong>Đội ngũ Nhân sự</strong><br>
+            Công ty Tuyển dụng</p>
+            <p>Email: hr@company.com | Điện thoại: (024) 1234-5678</p>
+            <p>Địa chỉ: 123 Đường ABC, Quận XYZ, Hà Nội</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -66,9 +66,9 @@ class SocketIOBroadcastServiceTest {
 
 
     @Test
-    @DisplayName("TC-SIO-001 - Gá»­i notification Ä‘Ãºng 1 session cá»§a Ä‘Ãºng user")
+    @DisplayName("TC-SIBS-001 - Gá»­i notification Ä‘Ãºng 1 session cá»§a Ä‘Ãºng user")
     void tc_sio_001_pushNotification_whenRecipientSessionMatches_shouldSendNotificationToMatchingUserSession() {
-        // Test Case ID: TC-SIO-001
+        // Test Case ID: TC-SIBS-001
         // Má»¥c tiÃªu: xÃ¡c minh notification Ä‘Æ°á»£c gá»­i Ä‘Ãºng 1 session cá»§a Ä‘Ãºng recipient.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng vÃ¬ service khÃ´ng truy cáº­p DB.
         // Rollback: khÃ´ng cÃ³ socket tháº­t hay dá»¯ liá»‡u tháº­t bá»‹ thay Ä‘á»•i.
@@ -87,9 +87,9 @@ class SocketIOBroadcastServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SIO-002 - Gá»­i notification cho nhiá»u session cá»§a cÃ¹ng má»™t user")
+    @DisplayName("TC-SIBS-002 - Gá»­i notification cho nhiá»u session cá»§a cÃ¹ng má»™t user")
     void tc_sio_002_pushNotification_whenUserHasMultipleSessions_shouldSendNotificationToAllSessionsOfSameUser() {
-        // Test Case ID: TC-SIO-002
+        // Test Case ID: TC-SIBS-002
         // Má»¥c tiÃªu: xÃ¡c minh notification Ä‘Æ°á»£c gá»­i tá»›i toÃ n bá»™ session cá»§a cÃ¹ng 1 user.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng.
         // Rollback: khÃ´ng cÃ³ tráº¡ng thÃ¡i persistent cáº§n phá»¥c há»“i.
@@ -112,9 +112,9 @@ class SocketIOBroadcastServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SIO-003 - KhÃ´ng gá»­i khi recipientId null")
+    @DisplayName("TC-SIBS-003 - KhÃ´ng gá»­i khi recipientId null")
     void tc_sio_003_pushNotification_whenRecipientIdIsNull_shouldSkipSendingNotification() {
-        // Test Case ID: TC-SIO-003
+        // Test Case ID: TC-SIBS-003
         // Má»¥c tiÃªu: xÃ¡c minh service bá» qua khi payload khÃ´ng cÃ³ recipientId.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng.
         // Rollback: khÃ´ng cÃ³ thay Ä‘á»•i dá»¯ liá»‡u tháº­t.
@@ -127,9 +127,9 @@ class SocketIOBroadcastServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SIO-004 - KhÃ´ng crash khi user khÃ´ng cÃ³ active session")
+    @DisplayName("TC-SIBS-004 - KhÃ´ng crash khi user khÃ´ng cÃ³ active session")
     void tc_sio_004_pushNotification_whenUserHasNoActiveSession_shouldNotThrowAnyException() {
-        // Test Case ID: TC-SIO-004
+        // Test Case ID: TC-SIBS-004
         // Má»¥c tiÃªu: xÃ¡c minh service khÃ´ng crash khi user khÃ´ng cÃ³ active session.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng.
         // Rollback: khÃ´ng cÃ³ dá»¯ liá»‡u hay socket tháº­t cáº§n rollback.
@@ -143,9 +143,9 @@ class SocketIOBroadcastServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SIO-005 - Bá» qua session khÃ´ng tÃ¬m tháº¥y client")
+    @DisplayName("TC-SIBS-005 - Bá» qua session khÃ´ng tÃ¬m tháº¥y client")
     void tc_sio_005_pushNotification_whenSessionClientIsNotFound_shouldSkipSendingToThatSession() {
-        // Test Case ID: TC-SIO-005
+        // Test Case ID: TC-SIBS-005
         // Má»¥c tiÃªu: xÃ¡c minh service bá» qua session khi khÃ´ng tÃ¬m tháº¥y client tÆ°Æ¡ng á»©ng.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng.
         // Rollback: khÃ´ng cÃ³ thay Ä‘á»•i dá»¯ liá»‡u tháº­t.
@@ -161,9 +161,9 @@ class SocketIOBroadcastServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SIO-006 - Gá»­i unread count Ä‘Ãºng cho user cÃ³ session")
+    @DisplayName("TC-SIBS-006 - Gá»­i unread count Ä‘Ãºng cho user cÃ³ session")
     void tc_sio_006_publishUnreadCount_whenRecipientHasActiveSession_shouldSendSummaryToMatchingUserSessions() {
-        // Test Case ID: TC-SIO-006
+        // Test Case ID: TC-SIBS-006
         // Má»¥c tiÃªu: xÃ¡c minh unread count Ä‘Æ°á»£c gá»­i Ä‘Ãºng cho session cá»§a recipient.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng.
         // Rollback: khÃ´ng cÃ³ thay Ä‘á»•i persistent data.
@@ -183,9 +183,9 @@ class SocketIOBroadcastServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SIO-007 - KhÃ´ng gá»­i unread count khi recipientId null")
+    @DisplayName("TC-SIBS-007 - KhÃ´ng gá»­i unread count khi recipientId null")
     void tc_sio_007_publishUnreadCount_whenRecipientIdIsNull_shouldSkipSendingSummary() {
-        // Test Case ID: TC-SIO-007
+        // Test Case ID: TC-SIBS-007
         // Má»¥c tiÃªu: xÃ¡c minh service bá» qua khi recipientId null.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng.
         // Rollback: khÃ´ng cÃ³ thay Ä‘á»•i dá»¯ liá»‡u tháº­t.
@@ -196,9 +196,9 @@ class SocketIOBroadcastServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SIO-008 - KhÃ´ng crash khi sessionId khÃ´ng pháº£i UUID há»£p lá»‡")
+    @DisplayName("TC-SIBS-008 - KhÃ´ng crash khi sessionId khÃ´ng pháº£i UUID há»£p lá»‡")
     void tc_sio_008_publishUnreadCount_whenSessionIdIsInvalidUuid_shouldHandleGracefully() {
-        // Test Case ID: TC-SIO-008
+        // Test Case ID: TC-SIBS-008
         // Má»¥c tiÃªu: xÃ¡c minh service khÃ´ng crash khi sessionId khÃ´ng pháº£i UUID há»£p lá»‡.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng.
         // Rollback: khÃ´ng cÃ³ tráº¡ng thÃ¡i cáº§n phá»¥c há»“i.
@@ -208,9 +208,9 @@ class SocketIOBroadcastServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SIO-009 - Broadcast presence cho táº¥t cáº£ client")
+    @DisplayName("TC-SIBS-009 - Broadcast presence cho táº¥t cáº£ client")
     void tc_sio_009_broadcastPresence_whenPresenceEventIsTriggered_shouldSendPresenceEventToAllClients() {
-        // Test Case ID: TC-SIO-009
+        // Test Case ID: TC-SIBS-009
         // Má»¥c tiÃªu: xÃ¡c minh broadcast presence Ä‘Æ°á»£c gá»­i tá»›i toÃ n bá»™ client.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng.
         // Rollback: khÃ´ng dÃ¹ng socket tháº­t, khÃ´ng cÃ³ dá»¯ liá»‡u cáº§n rollback.
@@ -228,9 +228,9 @@ class SocketIOBroadcastServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SIO-010 - EXPECTED FAIL - Khong crash khi sessionId khong phai UUID hop le trong pushNotification")
+    @DisplayName("TC-SIBS-010 - EXPECTED FAIL - Khong crash khi sessionId khong phai UUID hop le trong pushNotification")
     void tc_sio_010_pushNotification_whenSessionIdIsInvalidUuid_shouldHandleGracefully() {
-        // Test Case ID: TC-SIO-010 - EXPECTED FAIL/Bug exposed: service currently throws for invalid UUID sessionId.
+        // Test Case ID: TC-SIBS-010 - EXPECTED FAIL/Bug exposed: service currently throws for invalid UUID sessionId.
         // Má»¥c tiÃªu: xÃ¡c minh service khÃ´ng crash khi sessionId khÃ´ng pháº£i UUID há»£p lá»‡.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng.
         // Rollback: khÃ´ng cÃ³ thay Ä‘á»•i dá»¯ liá»‡u tháº­t.
@@ -241,9 +241,9 @@ class SocketIOBroadcastServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SIO-011 - Khong crash khi unread count duoc push toi session co client null")
+    @DisplayName("TC-SIBS-011 - Khong crash khi unread count duoc push toi session co client null")
     void tc_sio_011_publishUnreadCount_whenClientIsNull_shouldNotThrowAnyException() {
-        // Test Case ID: TC-SIO-011
+        // Test Case ID: TC-SIBS-011
         // Má»¥c tiÃªu: xÃ¡c minh service khÃ´ng crash khi session há»£p lá»‡ nhÆ°ng getClient tráº£ vá» null.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng.
         // Rollback: khÃ´ng cÃ³ tráº¡ng thÃ¡i cáº§n phá»¥c há»“i.
@@ -255,9 +255,9 @@ class SocketIOBroadcastServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SIO-012 - EXPECTED FAIL - Broadcast presence voi lastSeen null van phai xu ly duoc")
+    @DisplayName("TC-SIBS-012 - EXPECTED FAIL - Broadcast presence voi lastSeen null van phai xu ly duoc")
     void tc_sio_012_broadcastPresence_whenLastSeenIsNull_shouldHandleGracefully() {
-        // Test Case ID: TC-SIO-012 - EXPECTED FAIL/Bug exposed: service currently throws when lastSeen is null.
+        // Test Case ID: TC-SIBS-012 - EXPECTED FAIL/Bug exposed: service currently throws when lastSeen is null.
         // Má»¥c tiÃªu: xÃ¡c minh service khÃ´ng crash khi lastSeen null.
         // CheckDB: khÃ´ng Ã¡p dá»¥ng.
         // Rollback: khÃ´ng cÃ³ dá»¯ liá»‡u cáº§n rollback.
@@ -265,5 +265,20 @@ class SocketIOBroadcastServiceTest {
         when(socketIOServer.getBroadcastOperations()).thenReturn(broadcastOperations);
 
         assertDoesNotThrow(() -> socketIOBroadcastService.broadcastPresence(500L, false, null));
+    }
+
+    @Test
+    @DisplayName("TC-SIBS-013 - Khong gui unread count khi user khong co active session")
+    void tc_sio_013_publishUnreadCount_whenUserHasNoActiveSession_shouldNotLookupSocketClient() {
+        // Test Case ID: TC-SIBS-013
+        // Muc tieu: be nhanh userSessionIds.isEmpty() trong publishUnreadCount().
+        // CheckDB: khong ap dung vi service chi phat websocket event.
+        // Rollback: khong dung socket that, khong co persistent data.
+        when(eventHandler.getUserSessions()).thenReturn(Map.of(UUID.randomUUID().toString(), "999"));
+
+        assertDoesNotThrow(() -> socketIOBroadcastService.publishUnreadCount(202L, 5L));
+
+        verify(eventHandler).getUserSessions();
+        verifyNoMoreInteractions(socketIOServer);
     }
 }

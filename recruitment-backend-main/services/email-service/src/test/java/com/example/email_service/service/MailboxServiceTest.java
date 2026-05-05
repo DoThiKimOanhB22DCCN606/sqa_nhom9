@@ -1,11 +1,10 @@
-﻿package com.example.email_service.service;
+package com.example.email_service.service;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -16,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.any;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -67,10 +67,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS001 - sendGmail() should send email and save mail record
+    // Test Case ID: TC-MS-001 - sendGmail() should send email and save mail record
 
-    @DisplayName("TCMS001 - sendGmail() should send email and save mail record")
-    void tcms001_sendGmail_whenInputIsValid_shouldSendAndSaveMessage() {
+    @DisplayName("TC-MS-001 - sendGmail() should send email and save mail record")
+    void tc_ms_001_sendGmail_whenInputIsValid_shouldSendAndSaveMessage() {
         ReflectionTestUtils.setField(mailboxService, "fromEmail", "noreply@example.com");
 
         when(mailRepo.save(any(MailMessage.class))).thenAnswer(invocation -> {
@@ -81,27 +81,33 @@ class MailboxServiceTest {
 
         MailMessage result = mailboxService.sendGmail("recipient@example.com", "Subject", "Hello content");
 
-        assertNotNull(result);
         assertEquals(1L, result.getId());
         assertEquals("noreply@example.com", result.getFromEmail());
         assertEquals("recipient@example.com", result.getToEmail());
         assertEquals("Subject", result.getSubject());
         assertEquals("Hello content", result.getContent());
         assertTrue(result.isSent());
-        assertNotNull(result.getGmailMessageId());
+        assertTrue(result.getGmailMessageId() != null && !result.getGmailMessageId().isBlank());
 
         ArgumentCaptor<SimpleMailMessage> mailCaptor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender, times(1)).send(mailCaptor.capture());
         assertEquals("recipient@example.com", mailCaptor.getValue().getTo()[0]);
-        verify(mailRepo, times(1)).save(any(MailMessage.class));
+
+        // CheckDB: capture entity sent to repository instead of only checking return object.
+        ArgumentCaptor<MailMessage> savedMailCaptor = ArgumentCaptor.forClass(MailMessage.class);
+        verify(mailRepo, times(1)).save(savedMailCaptor.capture());
+        MailMessage persistedMail = savedMailCaptor.getValue();
+        assertEquals("recipient@example.com", persistedMail.getToEmail());
+        assertEquals("Subject", persistedMail.getSubject());
+        assertTrue(persistedMail.isSent());
     }
 
     @Test
 
-    // Test Case ID: TCMS002 - deleteMail() should soft delete mail when exists
+    // Test Case ID: TC-MS-002 - deleteMail() should soft delete mail when exists
 
-    @DisplayName("TCMS002 - deleteMail() should soft delete mail when exists")
-    void tcms002_deleteMail_whenMailExists_shouldMarkDeletedAndSave() {
+    @DisplayName("TC-MS-002 - deleteMail() should soft delete mail when exists")
+    void tc_ms_002_deleteMail_whenMailExists_shouldMarkDeletedAndSave() {
         MailMessage mail = createMail(2L, false, false, false, "Hi", "Body");
         when(mailRepo.findById(2L)).thenReturn(Optional.of(mail));
 
@@ -113,10 +119,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS003 - deleteMail() should do nothing when mail does not exist
+    // Test Case ID: TC-MS-003 - deleteMail() should do nothing when mail does not exist
 
-    @DisplayName("TCMS003 - deleteMail() should do nothing when mail does not exist")
-    void tcms003_deleteMail_whenMailMissing_shouldNotSave() {
+    @DisplayName("TC-MS-003 - deleteMail() should do nothing when mail does not exist")
+    void tc_ms_003_deleteMail_whenMailMissing_shouldNotSave() {
         when(mailRepo.findById(3L)).thenReturn(Optional.empty());
 
         mailboxService.deleteMail(3L);
@@ -126,10 +132,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS004 - permanentDelete() should delete mail when exists
+    // Test Case ID: TC-MS-004 - permanentDelete() should delete mail when exists
 
-    @DisplayName("TCMS004 - permanentDelete() should delete mail when exists")
-    void tcms004_permanentDelete_whenMailExists_shouldDeleteRecord() {
+    @DisplayName("TC-MS-004 - permanentDelete() should delete mail when exists")
+    void tc_ms_004_permanentDelete_whenMailExists_shouldDeleteRecord() {
         MailMessage mail = createMail(4L, true, false, false, "Subject", "Body");
         when(mailRepo.findById(4L)).thenReturn(Optional.of(mail));
 
@@ -140,37 +146,39 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS005 - getMailById() should return mail when present
+    // Test Case ID: TC-MS-005 - getMailById() should return mail when present
 
-    @DisplayName("TCMS005 - getMailById() should return mail when present")
-    void tcms005_getMailById_whenMailExists_shouldReturnMail() {
+    @DisplayName("TC-MS-005 - getMailById() should return mail when present")
+    void tc_ms_005_getMailById_whenMailExists_shouldReturnMail() {
         MailMessage mail = createMail(5L, false, false, false, "Hello", "World");
         when(mailRepo.findById(5L)).thenReturn(Optional.of(mail));
 
         MailMessage result = mailboxService.getMailById(5L);
 
-        assertNotNull(result);
         assertEquals(5L, result.getId());
+        assertEquals("Hello", result.getSubject());
+        verify(mailRepo).findById(5L);
     }
 
     @Test
 
-    // Test Case ID: TCMS006 - getMailById() should throw when mail missing
+    // Test Case ID: TC-MS-006 - getMailById() should throw when mail missing
 
-    @DisplayName("TCMS006 - getMailById() should throw when mail missing")
-    void tcms006_getMailById_whenMailMissing_shouldThrowRuntimeException() {
+    @DisplayName("TC-MS-006 - getMailById() should throw when mail missing")
+    void tc_ms_006_getMailById_whenMailMissing_shouldThrowRuntimeException() {
         when(mailRepo.findById(6L)).thenReturn(Optional.empty());
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> mailboxService.getMailById(6L));
-        assertNotNull(exception.getMessage());
+        assertTrue(exception.getMessage() != null && !exception.getMessage().isBlank());
+        verify(mailRepo).findById(6L);
     }
 
     @Test
 
-    // Test Case ID: TCMS007 - getAllEmailsWithFilters() should filter inbox, read and keyword correctly
+    // Test Case ID: TC-MS-007 - getAllEmailsWithFilters() should filter inbox, read and keyword correctly
 
-    @DisplayName("TCMS007 - getAllEmailsWithFilters() should filter inbox, read and keyword correctly")
-    void tcms007_getAllEmailsWithFilters_whenInboxReadAndKeyword_shouldReturnFilteredPagination() {
+    @DisplayName("TC-MS-007 - getAllEmailsWithFilters() should filter inbox, read and keyword correctly")
+    void tc_ms_007_getAllEmailsWithFilters_whenInboxReadAndKeyword_shouldReturnFilteredPagination() {
         MailMessage mail1 = createMail(7L, false, false, false, "Hello", "Meeting today");
         MailMessage mail2 = createMail(8L, false, true, false, "Hello", "Meeting today");
         MailMessage mail3 = createMail(9L, true, false, false, "Hello", "Meeting today");
@@ -182,19 +190,19 @@ class MailboxServiceTest {
 
         PaginationDTO result = mailboxService.getAllEmailsWithFilters("inbox", false, "Hello", "createdAt", "desc", 1, 10);
 
-        assertNotNull(result);
         assertEquals(2, ((List<?>) result.getResult()).size());
         assertEquals(2, result.getMeta().getTotal());
         assertEquals(1, result.getMeta().getPage());
         assertEquals(10, result.getMeta().getPageSize());
+        verify(mailRepo).findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class));
     }
 
     @Test
 
-    // Test Case ID: TCMS008 - getUnreadCount() should return unread count from repository
+    // Test Case ID: TC-MS-008 - getUnreadCount() should return unread count from repository
 
-    @DisplayName("TCMS008 - getUnreadCount() should return unread count from repository")
-    void tcms008_getUnreadCount_shouldReturnCountFromRepository() {
+    @DisplayName("TC-MS-008 - getUnreadCount() should return unread count from repository")
+    void tc_ms_008_getUnreadCount_shouldReturnCountFromRepository() {
         when(mailRepo.countBySentFalseAndReadFalseAndDeletedFalse()).thenReturn(7L);
 
         Long result = mailboxService.getUnreadCount();
@@ -205,10 +213,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS009 - permanentDelete() should do nothing when mail does not exist
+    // Test Case ID: TC-MS-009 - permanentDelete() should do nothing when mail does not exist
 
-    @DisplayName("TCMS009 - permanentDelete() should do nothing when mail does not exist")
-    void tcms009_permanentDelete_whenMailMissing_shouldNotDelete() {
+    @DisplayName("TC-MS-009 - permanentDelete() should do nothing when mail does not exist")
+    void tc_ms_009_permanentDelete_whenMailMissing_shouldNotDelete() {
         when(mailRepo.findById(209L)).thenReturn(Optional.empty());
 
         mailboxService.permanentDelete(209L);
@@ -218,10 +226,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS010 - getInbox() should normalize invalid pagination and return inbox page
+    // Test Case ID: TC-MS-010 - getInbox() should normalize invalid pagination and return inbox page
 
-    @DisplayName("TCMS010 - getInbox() should normalize invalid pagination and return inbox page")
-    void tcms010_getInbox_whenInvalidPagination_shouldNormalizeAndReturnInbox() {
+    @DisplayName("TC-MS-010 - getInbox() should normalize invalid pagination and return inbox page")
+    void tc_ms_010_getInbox_whenInvalidPagination_shouldNormalizeAndReturnInbox() {
         MailMessage mail = createMail(210L, false, false, false, "Inbox", "Body");
         when(mailRepo.findByDeletedFalseAndSentFalseOrderByCreatedAtDesc(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(mail), PageRequest.of(0, 1), 1));
@@ -235,10 +243,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS011 - getInboxAll() should use inbox repository and cap limit at 100
+    // Test Case ID: TC-MS-011 - getInboxAll() should use inbox repository and cap limit at 100
 
-    @DisplayName("TCMS011 - getInboxAll() should use inbox repository and cap limit at 100")
-    void tcms011_getInboxAll_whenLimitTooLarge_shouldCapAt100() {
+    @DisplayName("TC-MS-011 - getInboxAll() should use inbox repository and cap limit at 100")
+    void tc_ms_011_getInboxAll_whenLimitTooLarge_shouldCapAt100() {
         when(mailRepo.findByDeletedFalseAndSentFalseOrderByCreatedAtDesc(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 100), 0));
 
@@ -250,10 +258,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS012 - getSent() should return sent emails page
+    // Test Case ID: TC-MS-012 - getSent() should return sent emails page
 
-    @DisplayName("TCMS012 - getSent() should return sent emails page")
-    void tcms012_getSent_shouldReturnSentEmails() {
+    @DisplayName("TC-MS-012 - getSent() should return sent emails page")
+    void tc_ms_012_getSent_shouldReturnSentEmails() {
         MailMessage sent = createMail(212L, true, true, false, "Sent", "Body");
         when(mailRepo.findByDeletedFalseAndSentTrueOrderByCreatedAtDesc(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(sent), PageRequest.of(0, 10), 1));
@@ -266,10 +274,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS013 - getDeleted() should return repository page for deleted folder implementation
+    // Test Case ID: TC-MS-013 - implementation guard: getDeleted() currently delegates to the active-mail repository.
 
-    @DisplayName("TCMS013 - getDeleted() should return repository page for deleted folder implementation")
-    void tcms013_getDeleted_shouldReturnConfiguredRepositoryPage() {
+    @DisplayName("TC-MS-013 - getDeleted() documents current active-mail repository delegation")
+    void tc_ms_013_getDeleted_documentsCurrentActiveMailRepositoryDelegation() {
         MailMessage mail = createMail(213L, false, false, false, "Deleted", "Body");
         when(mailRepo.findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(mail), PageRequest.of(0, 10), 1));
@@ -282,10 +290,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS014 - markRead() should set read true and save when mail exists
+    // Test Case ID: TC-MS-014 - markRead() should set read true and save when mail exists
 
-    @DisplayName("TCMS014 - markRead() should set read true and save when mail exists")
-    void tcms014_markRead_whenMailExists_shouldPersistReadState() {
+    @DisplayName("TC-MS-014 - markRead() should set read true and save when mail exists")
+    void tc_ms_014_markRead_whenMailExists_shouldPersistReadState() {
         MailMessage mail = createMail(214L, false, false, false, "Unread", "Body");
         when(mailRepo.findById(214L)).thenReturn(Optional.of(mail));
 
@@ -297,10 +305,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS015 - markRead() should do nothing when mail is missing
+    // Test Case ID: TC-MS-015 - markRead() should do nothing when mail is missing
 
-    @DisplayName("TCMS015 - markRead() should do nothing when mail is missing")
-    void tcms015_markRead_whenMailMissing_shouldNotSave() {
+    @DisplayName("TC-MS-015 - markRead() should do nothing when mail is missing")
+    void tc_ms_015_markRead_whenMailMissing_shouldNotSave() {
         when(mailRepo.findById(215L)).thenReturn(Optional.empty());
 
         mailboxService.markRead(215L);
@@ -310,10 +318,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS016 - restoreMail() should set deleted false and save when mail exists
+    // Test Case ID: TC-MS-016 - restoreMail() should set deleted false and save when mail exists
 
-    @DisplayName("TCMS016 - restoreMail() should set deleted false and save when mail exists")
-    void tcms016_restoreMail_whenMailExists_shouldPersistDeletedFalse() {
+    @DisplayName("TC-MS-016 - restoreMail() should set deleted false and save when mail exists")
+    void tc_ms_016_restoreMail_whenMailExists_shouldPersistDeletedFalse() {
         MailMessage mail = createMail(216L, false, false, true, "Deleted", "Body");
         when(mailRepo.findById(216L)).thenReturn(Optional.of(mail));
 
@@ -325,10 +333,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS017 - restoreMail() should do nothing when mail is missing
+    // Test Case ID: TC-MS-017 - restoreMail() should do nothing when mail is missing
 
-    @DisplayName("TCMS017 - restoreMail() should do nothing when mail is missing")
-    void tcms017_restoreMail_whenMailMissing_shouldNotSave() {
+    @DisplayName("TC-MS-017 - restoreMail() should do nothing when mail is missing")
+    void tc_ms_017_restoreMail_whenMailMissing_shouldNotSave() {
         when(mailRepo.findById(217L)).thenReturn(Optional.empty());
 
         mailboxService.restoreMail(217L);
@@ -338,10 +346,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS018 - getAllEmailsWithFilters() should default folder sort and pagination when inputs are blank
+    // Test Case ID: TC-MS-018 - getAllEmailsWithFilters() should default folder sort and pagination when inputs are blank
 
-    @DisplayName("TCMS018 - getAllEmailsWithFilters() should default folder sort and pagination when inputs are blank")
-    void tcms018_getAllEmailsWithFilters_whenInputsBlank_shouldUseDefaults() {
+    @DisplayName("TC-MS-018 - getAllEmailsWithFilters() should default folder sort and pagination when inputs are blank")
+    void tc_ms_018_getAllEmailsWithFilters_whenInputsBlank_shouldUseDefaults() {
         MailMessage mail = createMail(218L, false, false, false, "Default", "Body");
         when(mailRepo.findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(mail), PageRequest.of(0, 1), 1));
@@ -355,10 +363,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS019 - getAllEmailsWithFilters() should filter sent folder
+    // Test Case ID: TC-MS-019 - getAllEmailsWithFilters() should filter sent folder
 
-    @DisplayName("TCMS019 - getAllEmailsWithFilters() should filter sent folder")
-    void tcms019_getAllEmailsWithFilters_whenSentFolder_shouldReturnOnlySentMessages() {
+    @DisplayName("TC-MS-019 - getAllEmailsWithFilters() should filter sent folder")
+    void tc_ms_019_getAllEmailsWithFilters_whenSentFolder_shouldReturnOnlySentMessages() {
         MailMessage inbox = createMail(219L, false, false, false, "Inbox", "Body");
         MailMessage sent = createMail(220L, true, false, false, "Sent", "Body");
         when(mailRepo.findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class)))
@@ -372,10 +380,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS020 - getAllEmailsWithFilters() should return empty deleted folder because base query excludes deleted
+    // Test Case ID: TC-MS-020 - getAllEmailsWithFilters() should return empty deleted folder because base query excludes deleted
 
-    @DisplayName("TCMS020 - getAllEmailsWithFilters() should return empty deleted folder because base query excludes deleted")
-    void tcms020_getAllEmailsWithFilters_whenDeletedFolder_shouldReturnEmptyDueToBaseQuery() {
+    @DisplayName("TC-MS-020 - getAllEmailsWithFilters() should return empty deleted folder because base query excludes deleted")
+    void tc_ms_020_getAllEmailsWithFilters_whenDeletedFolder_shouldReturnEmptyDueToBaseQuery() {
         MailMessage active = createMail(220L, false, false, false, "Active", "Body");
         when(mailRepo.findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(active), PageRequest.of(0, 10), 1));
@@ -388,10 +396,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS021 - getAllEmailsWithFilters() should match keyword in content when subject does not match
+    // Test Case ID: TC-MS-021 - getAllEmailsWithFilters() should match keyword in content when subject does not match
 
-    @DisplayName("TCMS021 - getAllEmailsWithFilters() should match keyword in content when subject does not match")
-    void tcms021_getAllEmailsWithFilters_whenKeywordMatchesContent_shouldReturnMessage() {
+    @DisplayName("TC-MS-021 - getAllEmailsWithFilters() should match keyword in content when subject does not match")
+    void tc_ms_021_getAllEmailsWithFilters_whenKeywordMatchesContent_shouldReturnMessage() {
         MailMessage mail = createMail(221L, false, false, false, "No match", "Important interview details");
         when(mailRepo.findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(mail), PageRequest.of(0, 10), 1));
@@ -404,10 +412,10 @@ class MailboxServiceTest {
 
     @Test
 
-    // Test Case ID: TCMS022 - getAllEmailsWithFilters() should return requested manual page slice
+    // Test Case ID: TC-MS-022 - getAllEmailsWithFilters() should return requested manual page slice
 
-    @DisplayName("TCMS022 - getAllEmailsWithFilters() should return requested manual page slice")
-    void tcms022_getAllEmailsWithFilters_whenSecondPageRequested_shouldReturnSecondSlice() {
+    @DisplayName("TC-MS-022 - getAllEmailsWithFilters() should return requested manual page slice")
+    void tc_ms_022_getAllEmailsWithFilters_whenSecondPageRequested_shouldReturnSecondSlice() {
         MailMessage first = createMail(222L, false, false, false, "A", "Body");
         MailMessage second = createMail(223L, false, false, false, "B", "Body");
         when(mailRepo.findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class)))
@@ -421,9 +429,9 @@ class MailboxServiceTest {
     }
 
     @Test
-    // Test Case ID: TCMS023 - EXPECTED FAIL/Bug exposed: service currently accepts empty subject.
-    @DisplayName("TCMS023 - EXPECTED FAIL - sendGmail() should reject empty subject and not save email history")
-    void tcms023_sendGmail_whenSubjectEmpty_shouldThrowAndNotSaveMailHistory() {
+    // Test Case ID: TC-MS-023 - EXPECTED FAIL/Bug exposed: service currently accepts empty subject.
+    @DisplayName("TC-MS-023 - EXPECTED FAIL - sendGmail() should reject empty subject and not save email history")
+    void tc_ms_023_sendGmail_whenSubjectEmpty_shouldThrowAndNotSaveMailHistory() {
         ReflectionTestUtils.setField(mailboxService, "fromEmail", "noreply@example.com");
 
         assertThrows(IllegalArgumentException.class,
@@ -432,9 +440,9 @@ class MailboxServiceTest {
     }
 
     @Test
-    // Test Case ID: TCMS024 - EXPECTED FAIL/Bug exposed: service currently accepts empty content.
-    @DisplayName("TCMS024 - EXPECTED FAIL - sendGmail() should reject empty content and not save email history")
-    void tcms024_sendGmail_whenContentEmpty_shouldThrowAndNotSaveMailHistory() {
+    // Test Case ID: TC-MS-024 - EXPECTED FAIL/Bug exposed: service currently accepts empty content.
+    @DisplayName("TC-MS-024 - EXPECTED FAIL - sendGmail() should reject empty content and not save email history")
+    void tc_ms_024_sendGmail_whenContentEmpty_shouldThrowAndNotSaveMailHistory() {
         ReflectionTestUtils.setField(mailboxService, "fromEmail", "noreply@example.com");
 
         assertThrows(IllegalArgumentException.class,
@@ -443,9 +451,9 @@ class MailboxServiceTest {
     }
 
     @Test
-    // Test Case ID: TCMS025 - EXPECTED FAIL/Bug exposed: service currently accepts null recipient.
-    @DisplayName("TCMS025 - EXPECTED FAIL - sendGmail() should reject null recipient and not save email history")
-    void tcms025_sendGmail_whenRecipientIsNull_shouldThrowAndNotSaveMailHistory() {
+    // Test Case ID: TC-MS-025 - EXPECTED FAIL/Bug exposed: service currently accepts null recipient.
+    @DisplayName("TC-MS-025 - EXPECTED FAIL - sendGmail() should reject null recipient and not save email history")
+    void tc_ms_025_sendGmail_whenRecipientIsNull_shouldThrowAndNotSaveMailHistory() {
         ReflectionTestUtils.setField(mailboxService, "fromEmail", "noreply@example.com");
 
         assertThrows(IllegalArgumentException.class,
@@ -454,9 +462,9 @@ class MailboxServiceTest {
     }
 
     @Test
-    // Test Case ID: TCMS026 - EXPECTED FAIL/Bug exposed: deleted folder query can expose active emails.
-    @DisplayName("TCMS026 - EXPECTED FAIL - getDeleted() should not return non-deleted emails")
-    void tcms026_getDeleted_whenRepositoryReturnsActiveMail_shouldNotExposeActiveMailInDeletedFolder() {
+    // Test Case ID: TC-MS-026 - EXPECTED FAIL/Bug exposed: deleted folder query can expose active emails.
+    @DisplayName("TC-MS-026 - EXPECTED FAIL - getDeleted() should not return non-deleted emails")
+    void tc_ms_026_getDeleted_whenRepositoryReturnsActiveMail_shouldNotExposeActiveMailInDeletedFolder() {
         MailMessage activeMail = createMail(226L, false, false, false, "Active", "Body");
         when(mailRepo.findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(activeMail), PageRequest.of(0, 10), 1));
@@ -466,5 +474,53 @@ class MailboxServiceTest {
         assertTrue(((List<?>) result.getResult()).isEmpty());
     }
 
+    @Test
+    // Test Case ID: TC-MS-027 - mail send failure must not persist history.
+    @DisplayName("TC-MS-027 - sendGmail() propagates sender failure and does not save mail history")
+    void tc_ms_027_sendGmail_whenMailSenderFails_shouldThrowAndNotSaveMailHistory() {
+        ReflectionTestUtils.setField(mailboxService, "fromEmail", "noreply@example.com");
+        RuntimeException sendError = new RuntimeException("SMTP error");
+        doThrow(sendError).when(mailSender).send(any(SimpleMailMessage.class));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> mailboxService.sendGmail("candidate@example.com", "Offer", "Welcome"));
+
+        assertSame(sendError, exception);
+        verify(mailSender, times(1)).send(any(SimpleMailMessage.class));
+        verify(mailRepo, never()).save(any(MailMessage.class));
+    }
+
+    @Test
+    // Test Case ID: TC-MS-028 - default folder/sort branches and pagination upper cap.
+    @DisplayName("TC-MS-028 - getAllEmailsWithFilters() defaults folder and caps limit when parameters are blank")
+    void tc_ms_028_getAllEmailsWithFilters_whenFolderAndSortBlank_shouldDefaultAndCapLimit() {
+        MailMessage mail = createMail(228L, false, false, false, "Default", "Body");
+        when(mailRepo.findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(mail), PageRequest.of(0, 100), 1));
+
+        PaginationDTO result = mailboxService.getAllEmailsWithFilters("", null, null, "", "", -1, 999);
+
+        assertEquals(1, result.getMeta().getPage());
+        assertEquals(100, result.getMeta().getPageSize());
+        assertEquals(1, result.getMeta().getTotal());
+        assertSame(mail, ((List<?>) result.getResult()).get(0));
+        verify(mailRepo).findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class));
+    }
+
+    @Test
+    // Test Case ID: TC-MS-029 - keyword branch should tolerate null subject and null content.
+    @DisplayName("TC-MS-029 - getAllEmailsWithFilters() excludes mail with null subject and content when keyword is provided")
+    void tc_ms_029_getAllEmailsWithFilters_whenKeywordProvidedAndMailTextNull_shouldReturnEmptyPage() {
+        MailMessage mail = createMail(229L, false, false, false, null, null);
+        when(mailRepo.findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(mail), PageRequest.of(0, 10), 1));
+
+        PaginationDTO result = mailboxService.getAllEmailsWithFilters("all", null, "interview", "createdAt", "desc",
+                1, 10);
+
+        assertEquals(0, result.getMeta().getTotal());
+        assertTrue(((List<?>) result.getResult()).isEmpty());
+        verify(mailRepo).findByDeletedFalseOrderByCreatedAtDesc(any(Pageable.class));
+    }
 
 }

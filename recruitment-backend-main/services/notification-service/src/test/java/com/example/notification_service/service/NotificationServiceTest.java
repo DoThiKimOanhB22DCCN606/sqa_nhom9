@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.DisplayName;
@@ -102,11 +101,10 @@ class NotificationServiceTest {
 
         Notification result = notificationService.createNotification(recipientId, title, message);
 
-        assertNotNull(result);
         assertEquals(1L, result.getId());
         assertEquals(recipientId, result.getRecipientId());
         assertEquals("SENT", result.getDeliveryStatus());
-        assertNotNull(result.getSentAt());
+        assertTrue(result.getSentAt() != null);
 
         // CheckDB: verify repository.save() receives correct data.
         ArgumentCaptor<Notification> notificationCaptor = ArgumentCaptor.forClass(Notification.class);
@@ -138,7 +136,7 @@ class NotificationServiceTest {
         notificationService.markAsRead(1L);
 
         assertTrue(existingNotification.isRead());
-        assertNotNull(existingNotification.getReadAt());
+        assertTrue(existingNotification.getReadAt() != null);
 
         // CheckDB
         verify(notificationRepository).findById(1L);
@@ -213,6 +211,7 @@ class NotificationServiceTest {
         int updatedCount = notificationService.markAllAsRead(101L);
 
         assertEquals(0, updatedCount);
+        verify(notificationRepository).markAllAsReadByRecipientId(eq(101L), any(LocalDateTime.class));
         verify(socketIOBroadcastService, never()).publishUnreadCount(anyLong(), anyLong());
     }
 
@@ -231,8 +230,8 @@ class NotificationServiceTest {
 
         PaginationDTO result = notificationService.getAllNotificationsWithFilters(101L, null, pageable);
 
-        assertNotNull(result);
         assertEquals(1L, result.getMeta().getTotal());
+        assertEquals(1, ((List<?>) result.getResult()).size());
         verify(notificationRepository).findByRecipientId(101L, pageable);
     }
 
@@ -251,8 +250,8 @@ class NotificationServiceTest {
 
         PaginationDTO result = notificationService.getAllNotificationsWithFilters(null, "SENT", pageable);
 
-        assertNotNull(result);
         assertEquals(1L, result.getMeta().getTotal());
+        assertEquals(1, ((List<?>) result.getResult()).size());
         verify(notificationRepository).findByDeliveryStatus("SENT", pageable);
     }
 
@@ -271,7 +270,8 @@ class NotificationServiceTest {
 
         PaginationDTO result = notificationService.getAllNotificationsWithFilters(null, null, pageable);
 
-        assertNotNull(result);
+        assertEquals(1L, result.getMeta().getTotal());
+        assertEquals(1, ((List<?>) result.getResult()).size());
         verify(notificationRepository).findAll(pageable);
     }
 
@@ -705,6 +705,99 @@ class NotificationServiceTest {
             assertEquals(0, count);
             verify(userService, never()).getEmployeeIdsByFilters(any(), any(), any(), any(), any());
             verify(notificationRepository, never()).save(any(Notification.class));
+        }
+    }
+
+    @Test
+    @DisplayName("TC-NS-029 - Lay thong ke notification toan he thong khi recipientId null")
+    void tc_ns_029_getNotificationStats_whenRecipientIdIsNull_shouldUseGlobalUnreadCount() {
+        // Test Case ID: TC-NS-029
+        // Muc tieu: be nhanh recipientId == null trong getNotificationStats().
+        // CheckDB:
+        // - count() va countByIsReadFalse() phai duoc goi.
+        // - countByRecipientIdAndIsReadFalse() khong duoc goi.
+        // Rollback: read-only mock repository, khong co DB that bi thay doi.
+        when(notificationRepository.count()).thenReturn(8L);
+        when(notificationRepository.countByIsReadFalse()).thenReturn(3L);
+
+        Map<String, Object> stats = notificationService.getNotificationStats(null);
+
+        assertEquals(8L, stats.get("totalNotifications"));
+        assertEquals(3L, stats.get("unreadNotifications"));
+        verify(notificationRepository).count();
+        verify(notificationRepository).countByIsReadFalse();
+        verify(notificationRepository, never()).countByRecipientIdAndIsReadFalse(anyLong());
+    }
+
+    @Test
+    @DisplayName("TC-NS-030 - Lay notification theo recipientId dung repository")
+    void tc_ns_030_getNotificationsByRecipient_whenRecipientIdProvided_shouldDelegateToRepository() {
+        // Test Case ID: TC-NS-030
+        // Muc tieu: cover read-only DB access path getNotificationsByRecipient().
+        // CheckDB:
+        // - notificationRepository.findByRecipientId() phai duoc goi dung recipientId.
+        // Rollback: read-only mock repository, khong co DB that bi thay doi.
+        Notification notification = buildNotification(30L, 3030L, false, "SENT");
+        when(notificationRepository.findByRecipientId(3030L)).thenReturn(List.of(notification));
+
+        List<Notification> result = notificationService.getNotificationsByRecipient(3030L);
+
+        assertEquals(1, result.size());
+        assertEquals(3030L, result.get(0).getRecipientId());
+        verify(notificationRepository).findByRecipientId(3030L);
+    }
+
+    @Test
+    @DisplayName("TC-NS-031 - Loc notification uu tien recipientId khi status cung duoc truyen")
+    void tc_ns_031_getAllNotificationsWithFilters_whenRecipientIdAndStatusProvided_shouldPrioritizeRecipientId() {
+        // Test Case ID: TC-NS-031
+        // Muc tieu: be nhanh uu tien if(recipientId != null) truoc else-if(status != null).
+        // CheckDB:
+        // - findByRecipientId() phai duoc goi.
+        // - findByDeliveryStatus() khong duoc goi.
+        // Rollback: read-only mock repository, khong co DB that bi thay doi.
+        Pageable pageable = PageRequest.of(0, 5);
+        Page<Notification> page = new PageImpl<>(List.of(buildNotification(31L, 3131L, false, "FAILED")), pageable, 1);
+        when(notificationRepository.findByRecipientId(3131L, pageable)).thenReturn(page);
+
+        PaginationDTO result = notificationService.getAllNotificationsWithFilters(3131L, "FAILED", pageable);
+
+        assertEquals(1L, result.getMeta().getTotal());
+        assertEquals(3131L, ((Notification) ((List<?>) result.getResult()).get(0)).getRecipientId());
+        verify(notificationRepository).findByRecipientId(3131L, pageable);
+        verify(notificationRepository, never()).findByDeliveryStatus(any(String.class), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("TC-NS-032 - Bulk includeAllEmployees uu tien danh sach all employee va khong goi filter phu")
+    void tc_ns_032_createBulkNotificationsByConditions_whenIncludeAllEmployeesAndFiltersProvided_shouldNotCallFilterService() {
+        // Test Case ID: TC-NS-032
+        // Muc tieu: be nhanh includeAllEmployees true trong resolveRecipientsFromRequest().
+        // CheckDB:
+        // - getAllEmployeeIds() phai duoc goi.
+        // - getEmployeeIdsByFilters() khong duoc goi vi includeAllEmployees la uu tien cao hon.
+        // - save() phai duoc goi theo tap recipient sau khi loai trung.
+        // Rollback: mock repository nen khong co DB that bi thay doi.
+        BulkNotificationRequest request = new BulkNotificationRequest();
+        request.setTitle("Thong bao all");
+        request.setMessage("Gui toan cong ty");
+        request.setIncludeAllEmployees(true);
+        request.setDepartmentId(10L);
+        request.setPositionId(20L);
+        request.setRecipientIds(List.of(1L, 3L));
+
+        when(userService.getAllEmployeeIds("jwt-token")).thenReturn(List.of(1L, 2L));
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        try (MockedStatic<SecurityUtil> securityMock = mockStatic(SecurityUtil.class)) {
+            securityMock.when(SecurityUtil::getCurrentUserJWT).thenReturn(Optional.of("jwt-token"));
+
+            int count = notificationService.createBulkNotificationsByConditions(request);
+
+            assertEquals(3, count);
+            verify(userService).getAllEmployeeIds("jwt-token");
+            verify(userService, never()).getEmployeeIdsByFilters(any(), any(), any(), any(), any());
+            verify(notificationRepository, times(3)).save(any(Notification.class));
         }
     }
 }

@@ -1,0 +1,1047 @@
+{
+  "info": {
+    "_postman_id": "ea0775cf-7659-45e0-890b-f5e30f51aff1",
+    "name": "JobPosition",
+    "description": "Automated verification of the job lifecycle including state transitions and final resource cleanup. Workflow: Baseline Audit → Resource Provisioning → Mutation → State Elevation → Termination → Registry Purge.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "43601392",
+    "_collection_link": "https://go.postman.co/collection/43601392-ea0775cf-7659-45e0-890b-f5e30f51aff1?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Stateful_Operational_Workflow_Automation",
+      "item": [
+        {
+          "name": "JOB01-Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify handshake success - Status 200', () => pm.response.to.have.status(200));",
+                  "const authData = pm.response.json();",
+                  "pm.collectionVariables.set('sec_bearer_token', authData.data.access_token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"bich.tran@company.com\", \"password\": \"123456\"}"
+            },
+            "url": {
+              "raw": "{{api_host}}/api/v1/user-service/auth/login",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user-service",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB02-Get All Positions Baseline",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Validate registry access - Status 200', () => pm.response.to.have.status(200));",
+                  "const registryPayload = pm.response.json();",
+                  "const currentTotal = registryPayload.data.meta.total || registryPayload.data.result.length;",
+                  "pm.collectionVariables.set('baseline_entry_count', currentTotal);",
+                  "console.info('[AUDIT] Initial registry volume: ' + currentTotal);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions?page=1&limit=100",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB03-Create Position",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const authKey = pm.collectionVariables.get('sec_bearer_token');",
+                  "const host = pm.variables.get('api_host') || 'http://localhost:8081';",
+                  "pm.sendRequest({",
+                  "  url: host + '/api/v1/job-service/recruitment-requests?status=APPROVED&page=1&limit=1',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + authKey }",
+                  "}, function(err, res) {",
+                  "  if (!err && res && res.code === 200) {",
+                  "    const items = res.json().data && res.json().data.result ? res.json().data.result : [];",
+                  "    if (items.length > 0) pm.collectionVariables.set('req_source_id', items[0].id);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Confirm resource creation - Status 200', () => pm.response.to.have.status(200));",
+                  "const resourceObj = pm.response.json();",
+                  "pm.test('Object contains valid identifier', () => pm.expect(resourceObj.data.id).to.be.a('number'));",
+                  "pm.collectionVariables.set('vacancy_ref_id', resourceObj.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Java Developer\", \"recruitmentRequestId\": {{req_source_id}}, \"departmentId\": 5, \"description\": \"Logic test provision\"}"
+            },
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB04-Get Position by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify record retrieval via ID', () => pm.response.to.have.status(200));",
+                  "const record = pm.response.json();",
+                  "const targetId = parseInt(pm.collectionVariables.get('vacancy_ref_id'));",
+                  "pm.test('Assert ID integrity', () => pm.expect(record.data.id).to.equal(targetId));",
+                  "pm.test('Verify assigned title', () => pm.expect(record.data.title).to.equal('Java Developer'));",
+                  "pm.test('Validate department linkage', () => pm.expect(record.data.departmentName).to.be.a('string'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/{{vacancy_ref_id}}",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "{{vacancy_ref_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB05-Get Simple Position",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Confirm simplified view access', () => pm.response.to.have.status(200));",
+                  "const projection = pm.response.json();",
+                  "pm.test('Projection has ID and Title properties', () => {",
+                  "  pm.expect(projection.data.id).to.be.a('number');",
+                  "  pm.expect(projection.data.title).to.equal('Java Developer');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/simple/{{vacancy_ref_id}}",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "simple",
+                "{{vacancy_ref_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB06-Update Position",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify attribute modification success', () => pm.response.to.have.status(200));",
+                  "const updatedObj = pm.response.json();",
+                  "pm.test('Confirm field transition in response', () => pm.expect(updatedObj.data.title).to.equal('Senior Java Dev'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Senior Java Dev\", \"description\": \"Refactored description\"}"
+            },
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/{{vacancy_ref_id}}",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "{{vacancy_ref_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB07-Verify Updated Position",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Confirm modified state persistence', () => pm.response.to.have.status(200));",
+                  "const finalState = pm.response.json();",
+                  "pm.test('Title matches updated value', () => pm.expect(finalState.data.title).to.equal('Senior Java Dev'));",
+                  "pm.test('Description reflects mutation', () => pm.expect(finalState.data.description).to.include('Refactored'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/{{vacancy_ref_id}}",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "{{vacancy_ref_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB08-Publish Position",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify transition to PUBLISHED state', () => pm.response.to.have.status(200));",
+                  "const statusData = pm.response.json();",
+                  "pm.test('Confirm internal status string', () => pm.expect(statusData.data.status).to.equal('PUBLISHED'));"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/{{vacancy_ref_id}}/publish",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "{{vacancy_ref_id}}",
+                "publish"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB09-Verify Published Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Registry check for PUBLISHED state', () => pm.response.to.have.status(200));",
+                  "pm.test('Status in DB is PUBLISHED', () => pm.expect(pm.response.json().data.status).to.equal('PUBLISHED'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/{{vacancy_ref_id}}",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "{{vacancy_ref_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB10-Close Position",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify transition to CLOSED state', () => pm.response.to.have.status(200));",
+                  "pm.test('Response flags status as CLOSED', () => pm.expect(pm.response.json().data.status).to.equal('CLOSED'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/{{vacancy_ref_id}}/close",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "{{vacancy_ref_id}}",
+                "close"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB11-Verify Closed Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Registry check for CLOSED state', () => pm.response.to.have.status(200));",
+                  "pm.test('Verify CLOSED tag in dataset', () => pm.expect(pm.response.json().data.status).to.equal('CLOSED'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/{{vacancy_ref_id}}",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "{{vacancy_ref_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB12-Reopen Position",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify resource reinstatement', () => pm.response.to.have.status(200));",
+                  "pm.test('Reverted status should be PUBLISHED', () => pm.expect(pm.response.json().data.status).to.equal('PUBLISHED'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/{{vacancy_ref_id}}/reopen",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "{{vacancy_ref_id}}",
+                "reopen"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB13-Delete Position",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Confirm deletion protocol execution', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/{{vacancy_ref_id}}",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "{{vacancy_ref_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB14-Verify Deleted Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.test('Ensure resource flag is set to inactive', () => {",
+                  "    pm.expect(pm.response.json().data.active).to.be.false;",
+                  "  });",
+                  "} else {",
+                  "  pm.test('Confirm resource is unreachable - 400 or 404', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400, 404]);",
+                  "  });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/{{vacancy_ref_id}}",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "{{vacancy_ref_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Boundary_Constraint_Validation_Suite",
+      "item": [
+        {
+          "name": "JOB15-Get Positions with Pagination",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Validate pagination response - 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Response schema includes metadata and array', () => {",
+                  "  const dataset = pm.response.json();",
+                  "  pm.expect(dataset.data.meta).to.exist;",
+                  "  pm.expect(dataset.data.result).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions?page=1&limit=10",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB16-Filter Positions by Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify status-based filtering', () => pm.response.to.have.status(200));",
+                  "const filteredSet = pm.response.json();",
+                  "pm.test('Assert all items match PUBLISHED criteria', () => {",
+                  "  filteredSet.data.result.forEach(entry => pm.expect(entry.status).to.equal('PUBLISHED'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions?status=PUBLISHED",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PUBLISHED"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB17-Create Position Draft Request Fail",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const authKey = pm.collectionVariables.get('sec_bearer_token');",
+                  "const host = pm.variables.get('api_host') || 'http://localhost:8081';",
+                  "pm.sendRequest({",
+                  "  url: host + '/api/v1/job-service/recruitment-requests?status=DRAFT&page=1&limit=1',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + authKey }",
+                  "}, function(err, res) {",
+                  "  if (!err && res && res.code === 200) {",
+                  "    const items = res.json().data && res.json().data.result ? res.json().data.result : [];",
+                  "    if (items.length > 0) pm.collectionVariables.set('pending_req_ref', items[0].id);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Expect failure: Source request not approved', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Invalid State Prov\", \"recruitmentRequestId\": {{pending_req_ref}}, \"departmentId\": 5, \"description\": \"Negative Test\"}"
+            },
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB18-Create Position Invalid Salary Range",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Expect failure: Logical salary range error', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Range Error Job\", \"recruitmentRequestId\": {{req_source_id}}, \"departmentId\": 5, \"salaryMin\": 50000000, \"salaryMax\": 10000000, \"description\": \"Min > Max constraint\"}"
+            },
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB19-Update Live Position Forbidden",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const authKey = pm.collectionVariables.get('sec_bearer_token');",
+                  "const host = pm.variables.get('api_host') || 'http://localhost:8081';",
+                  "pm.sendRequest({",
+                  "  url: host + '/api/v1/job-service/job-positions?status=PUBLISHED&page=1&limit=1',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + authKey }",
+                  "}, function(err, res) {",
+                  "  if (!err && res && res.code === 200) {",
+                  "    const items = res.json().data && res.json().data.result ? res.json().data.result : [];",
+                  "    if (items.length > 0) pm.collectionVariables.set('live_vacancy_id', items[0].id);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Expect failure: Forbidden update on live resource', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Modified Live Job\", \"description\": \"Should fail\"}"
+            },
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/{{live_vacancy_id}}",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "{{live_vacancy_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB20-Delete Non-existent Position",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Expect failure: Resource not found - 404', () => pm.response.to.have.status(404));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions/999999",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions",
+                "999999"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "JOB21-Create Position No Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Expect failure: Unauthenticated access - 401', () => pm.response.to.have.status(401));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Anonymous Entry\", \"recruitmentRequestId\": 1, \"departmentId\": 5}"
+            },
+            "url": {
+              "raw": "{{api_host}}/api/v1/job-service/job-positions",
+              "host": [
+                "{{api_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "job-positions"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "api_host",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "sec_bearer_token",
+      "value": ""
+    },
+    {
+      "key": "req_source_id",
+      "value": ""
+    },
+    {
+      "key": "pending_req_ref",
+      "value": ""
+    },
+    {
+      "key": "denied_req_ref",
+      "value": ""
+    },
+    {
+      "key": "vacancy_ref_id",
+      "value": ""
+    },
+    {
+      "key": "live_vacancy_id",
+      "value": ""
+    },
+    {
+      "key": "terminated_vacancy_id",
+      "value": ""
+    },
+    {
+      "key": "active_workflow_id",
+      "value": ""
+    },
+    {
+      "key": "baseline_entry_count",
+      "value": "0"
+    }
+  ]
+}

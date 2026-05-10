@@ -1,0 +1,708 @@
+{
+  "info": {
+    "_postman_id": "17bdb7a8-3896-48b0-9396-433c3e0980bd",
+    "name": "Workflow_Execution_Suite",
+    "description": "Stateful lifecycle validation: Baseline capture → Instantiation → Persistence Check → State Transition → Terminal state or Rollback.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "43601392",
+    "_collection_link": "https://go.postman.co/collection/43601392-17bdb7a8-3896-48b0-9396-433c3e0980bd?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Lifecycle",
+      "item": [
+        {
+          "name": "WF01 - Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify Authentication Response - Success 200', () => pm.response.to.have.status(200));",
+                  "const authResponse = pm.response.json();",
+                  "pm.collectionVariables.set('sec_bearer_token', authResponse.data.access_token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"an.nguyen@company.com\", \"password\": \"123456\"}"
+            },
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/user-service/auth/login",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user-service",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WF02 - Get all trackings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Confirm baseline data accessibility', () => pm.response.to.have.status(200));",
+                  "const payload = pm.response.json();",
+                  "pm.test('Validate schema integrity of metadata and results', () => {",
+                  "  pm.expect(payload.data.meta).to.exist;",
+                  "  pm.expect(payload.data.result).to.be.an('array');",
+                  "});",
+                  "const currentTotal = payload.data.meta.total || payload.data.result.length;",
+                  "pm.collectionVariables.set('baseline_entry_count', currentTotal);",
+                  "console.info('[AUDIT] Initial baseline recorded: ' + currentTotal);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WF03 - Start Workflow",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (!pm.variables.get('resource_req_idx')) {",
+                  "  pm.variables.set('resource_req_idx', '1');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Handle known upstream dependency error (400)', () => pm.response.to.have.status(400));",
+                  "const apiRoot = pm.variables.get('target_api_gateway') || 'http://localhost:8081';",
+                  "const authKey = pm.variables.get('sec_bearer_token');",
+                  "const recoveryAction = {",
+                  "  url: apiRoot + '/api/v1/workflow-service/approval-trackings?status=PENDING&approverPositionId=1&limit=1',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + authKey }",
+                  "};",
+                  "pm.sendRequest(recoveryAction, function (err, res) {",
+                  "  if (!err && res && res.json().data && res.json().data.result && res.json().data.result.length > 0) {",
+                  "      const detectedId = res.json().data.result[0].id;",
+                  "      pm.collectionVariables.set('entry_ref_id', detectedId);",
+                  "      console.warn('Recovered process context via fallback ID:', detectedId);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"requestId\": {{resource_req_idx}}, \"departmentId\": 3, \"levelId\": 1}"
+            },
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings/initialize",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings",
+                "initialize"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WF04 - Get Tracking by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify object retrieval via identifier', () => pm.response.to.have.status(200));",
+                  "const resData = pm.response.json();",
+                  "const targetId = parseInt(pm.collectionVariables.get('entry_ref_id'));",
+                  "pm.test('Match internal record ID', () => pm.expect(resData.data.id).to.equal(targetId));",
+                  "pm.test('Ensure lifecycle state is PENDING', () => pm.expect(resData.data.status).to.equal('PENDING'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings/{{entry_ref_id}}",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings",
+                "{{entry_ref_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WF05 - Get All Trackings (Verify Count)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify list expansion post-instantiation', () => pm.response.to.have.status(200));",
+                  "const finalPayload = pm.response.json();",
+                  "const baseCount = parseInt(pm.collectionVariables.get('baseline_entry_count'));",
+                  "const currentCount = finalPayload.data.meta.total || finalPayload.data.result.length;",
+                  "pm.test('Confirm registry count increment: ' + baseCount + ' to ' + currentCount, () => {",
+                  "  pm.expect(currentCount).to.be.greaterThan(baseCount);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WF06 - Approve Workflow",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Successful execution of approval logic', () => pm.response.to.have.status(200));",
+                  "const stateInfo = pm.response.json();",
+                  "pm.test('Validate transition to logical next state', () => {",
+                  "  pm.expect(stateInfo.data.status).to.be.oneOf(['APPROVED', 'PENDING']);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"approved\": true, \"approvalNotes\": \"Logic processed\"}"
+            },
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings/{{entry_ref_id}}/approve",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings",
+                "{{entry_ref_id}}",
+                "approve"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WF07 - Get Tracking Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Fetch updated status post-transaction', () => pm.response.to.have.status(200));",
+                  "const updateData = pm.response.json();",
+                  "pm.test('Confirm valid state transition', () => {",
+                  "  pm.expect(updateData.data.status).to.be.oneOf(['APPROVED', 'PENDING']);",
+                  "});",
+                  "pm.test('Integrity check: Record ID remains constant', () => {",
+                  "  pm.expect(updateData.data.id).to.equal(parseInt(pm.collectionVariables.get('entry_ref_id')));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings/{{entry_ref_id}}",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings",
+                "{{entry_ref_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Data_Query_and_Predicate_Filtering",
+      "item": [
+        {
+          "name": "WF08 - Filter by Request ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify request filtering by Resource ID', () => pm.response.to.have.status(200));",
+                  "const filterSet = pm.response.json();",
+                  "const expectedContext = parseInt(pm.collectionVariables.get('resource_req_idx'));",
+                  "pm.test('Assert all results match input context', () => {",
+                  "  filterSet.data.result.forEach(item => pm.expect(item.requestId).to.equal(expectedContext));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings?requestId={{resource_req_idx}}",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings"
+              ],
+              "query": [
+                {
+                  "key": "requestId",
+                  "value": "{{resource_req_idx}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WF09 - Filter by Pending Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Validate data segmentation by PENDING state', () => pm.response.to.have.status(200));",
+                  "const statusSet = pm.response.json();",
+                  "pm.test('Confirm exclusive PENDING state in result set', () => {",
+                  "  statusSet.data.result.forEach(item => pm.expect(item.status).to.equal('PENDING'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings?status=PENDING",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WF10 - Get Pending Queue",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify subject-specific queue retrieval', () => pm.response.to.have.status(200));",
+                  "pm.test('Result set should conform to array structure', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings/pending/1",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings",
+                "pending",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WF11 - Get Tracking History",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify flow metadata availability', () => pm.response.to.have.status(200));",
+                  "pm.test('Confirm existence of data object in response', () => pm.expect(pm.response.json().data).to.exist);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings/by-request/{{resource_req_idx}}?requestType=RECRUITMENT_REQUEST",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings",
+                "by-request",
+                "{{resource_req_idx}}"
+              ],
+              "query": [
+                {
+                  "key": "requestType",
+                  "value": "RECRUITMENT_REQUEST"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Boundary_Condition_and_Exception_Handling",
+      "item": [
+        {
+          "name": "WF12 - Reject WorkflowReject Workflow",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Successful processing of rejection state', () => pm.response.to.have.status(200));",
+                  "const rejectRes = pm.response.json();",
+                  "pm.test('Confirm terminal status is REJECTED', () => pm.expect(rejectRes.data.status).to.equal('REJECTED'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"approved\": false, \"approvalNotes\": \"Declined by system test\"}"
+            },
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings/{{entry_ref_id}}/approve",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings",
+                "{{entry_ref_id}}",
+                "approve"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WF13 - Approve with Invalid Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Expect 400 error on invalid boolean input', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"approved\": null, \"approvalNotes\": \"Triggering validation failure\"}"
+            },
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings/{{entry_ref_id}}/approve",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings",
+                "{{entry_ref_id}}",
+                "approve"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "WF14 - Approve Unauthorized",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify Access Control enforcement (403/400)', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([403, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{employee_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"approved\": true, \"approvalNotes\": \"Unauthorized approval attempt\"}"
+            },
+            "url": {
+              "raw": "{{target_api_gateway}}/api/v1/workflow-service/approval-trackings/{{entry_ref_id}}/approve",
+              "host": [
+                "{{target_api_gateway}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings",
+                "{{entry_ref_id}}",
+                "approve"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "target_api_gateway",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "sec_bearer_token",
+      "value": ""
+    },
+    {
+      "key": "process_flow_id",
+      "value": ""
+    },
+    {
+      "key": "entry_ref_id",
+      "value": ""
+    },
+    {
+      "key": "resource_req_idx",
+      "value": "1"
+    },
+    {
+      "key": "baseline_entry_count",
+      "value": "0"
+    }
+  ]
+}

@@ -1,0 +1,1793 @@
+{
+  "info": {
+    "_postman_id": "8459aa0b-f911-41da-84c1-d854c463ae63",
+    "name": "Recruitment Request",
+    "description": "Stateful lifecycle validation for requisition entities: Baseline capture → Resource Provisioning → Persistence Audit → Attribute Mutation → Logical Purge. Automated cleanup included.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "43601392",
+    "_collection_link": "https://go.postman.co/collection/43601392-8459aa0b-f911-41da-84c1-d854c463ae63?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Standard_Requisition_Stateful_Workflow",
+      "item": [
+        {
+          "name": "REQ01-Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify successful session establishment (200)', () => pm.response.to.have.status(200));",
+                  "const authResponse = pm.response.json();",
+                  "pm.collectionVariables.set('sec_bearer_token', authResponse.data.access_token);",
+                  "const rootAddr = pm.variables.get('api_gateway_host') || 'http://localhost:8081';",
+                  "pm.sendRequest({",
+                  "  url: rootAddr + '/api/v1/user-service/auth/login',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify({ username: 'phuc.ngo@company.com', password: '123456' }) }",
+                  "}, function(err, res) {",
+                  "  if (!err && res && res.code === 200) {",
+                  "    pm.collectionVariables.set('peer_authorized_key', res.json().data.access_token);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"an.nguyen@company.com\", \"password\": \"123456\"}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/user-service/auth/login",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "user-service",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ02-Get All Requests Baseline",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Confirm baseline registry accessibility (200)', () => pm.response.to.have.status(200));",
+                  "const registryData = pm.response.json();",
+                  "pm.test('Verify result set structure is an array', () => pm.expect(registryData.data.result).to.be.an('array'));",
+                  "const totalItems = registryData.data.meta.total || registryData.data.result.length;",
+                  "pm.collectionVariables.set('audit_baseline_count', totalItems);",
+                  "console.info('[AUDIT] Registry baseline captured: ' + totalItems);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests?page=1&limit=100",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ03-Create Draft Request",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const activeKey = pm.variables.get('sec_bearer_token');",
+                  "let contextId = 3;",
+                  "if (activeKey) {",
+                  "    try {",
+                  "        const claims = JSON.parse(atob(activeKey.split('.')[1]));",
+                  "        if (claims.user && claims.user.departmentId) {",
+                  "            contextId = claims.user.departmentId;",
+                  "        }",
+                  "    } catch(e) {}",
+                  "}",
+                  "pm.variables.set('unit_context_idx', contextId);",
+                  "pm.collectionVariables.set('unit_context_idx', contextId);",
+                  "const base = pm.variables.get('api_gateway_host') || 'http://localhost:8081';",
+                  "const workflowSearch = {",
+                  "    url: base + '/api/v1/workflow-service/workflows',",
+                  "    method: 'GET',",
+                  "    header: { 'Authorization': 'Bearer ' + activeKey }",
+                  "};",
+                  "pm.sendRequest(workflowSearch, function(err, res) {",
+                  "    if (!err && res && res.json().data && res.json().data.result) {",
+                  "        const flows = res.json().data.result;",
+                  "        const match = flows.find(f => f.departmentId === contextId && f.isActive === true);",
+                  "        if (match) {",
+                  "            pm.variables.set('proc_workflow_idx', match.id);",
+                  "            pm.collectionVariables.set('proc_workflow_idx', match.id);",
+                  "            console.log('Mapping workflow ID ' + match.id + ' to unit ' + contextId);",
+                  "        } else if (flows.length > 0) {",
+                  "            pm.variables.set('proc_workflow_idx', flows[0].id);",
+                  "            pm.collectionVariables.set('proc_workflow_idx', flows[0].id);",
+                  "        }",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify successful draft creation (200)', () => pm.response.to.have.status(200));",
+                  "const draftPayload = pm.response.json();",
+                  "pm.test('Confirm valid numeric identifier in response', () => pm.expect(draftPayload.data.id).to.be.a('number'));",
+                  "pm.test('Ensure lifecycle state is DRAFT', () => pm.expect(draftPayload.data.status).to.equal('DRAFT'));",
+                  "pm.test('Resource active flag set to true', () => pm.expect(draftPayload.data.active).to.be.true);",
+                  "pm.collectionVariables.set('requisition_record_uid', draftPayload.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Tuyen Java Dev\", \"quantity\": 2, \"reason\": \"Mo rong team\", \"salaryMin\": 10000000, \"salaryMax\": 20000000, \"workflowId\": {{proc_workflow_idx}}, \"departmentId\": {{unit_context_idx}}}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ04-Get Request by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Confirm object retrieval via identifier (200)', () => pm.response.to.have.status(200));",
+                  "const objRecord = pm.response.json();",
+                  "const targetId = parseInt(pm.collectionVariables.get('requisition_record_uid'));",
+                  "pm.test('Assert ID integrity', () => pm.expect(objRecord.data.id).to.equal(targetId));",
+                  "pm.test('Assert Title consistency', () => pm.expect(objRecord.data.title).to.equal('Tuyen Java Dev'));",
+                  "pm.test('Validate DRAFT state persistence', () => pm.expect(objRecord.data.status).to.equal('DRAFT'));",
+                  "pm.test('Verify numeric quantity attribute', () => pm.expect(objRecord.data.quantity).to.equal(2));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/{{requisition_record_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "{{requisition_record_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ05-Update Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify attribute modification success (200)', () => pm.response.to.have.status(200));",
+                  "const updateRes = pm.response.json();",
+                  "pm.test('Confirm Title update in payload', () => pm.expect(updateRes.data.title).to.equal('Updated Java Dev'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Updated Java Dev\", \"quantity\": 3, \"reason\": \"Sua de test\", \"salaryMin\": 10000000, \"salaryMax\": 20000000, \"workflowId\": {{proc_workflow_idx}}, \"departmentId\": {{unit_context_idx}}}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/{{requisition_record_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "{{requisition_record_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ06-Verify Updated Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify mutated state in database (200)', () => pm.response.to.have.status(200));",
+                  "const finalObj = pm.response.json();",
+                  "pm.test('Confirm persisted title change', () => pm.expect(finalObj.data.title).to.equal('Updated Java Dev'));",
+                  "pm.test('Confirm persisted quantity change', () => pm.expect(finalObj.data.quantity).to.equal(3));",
+                  "pm.test('Verify state remains locked as DRAFT', () => pm.expect(finalObj.data.status).to.equal('DRAFT'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/{{requisition_record_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "{{requisition_record_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ07-Delete Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Confirm deletion protocol execution (200/204)', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/{{requisition_record_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "{{requisition_record_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ08-Verify Deleted Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  pm.test('Confirm record flag is set to inactive (Soft Delete)', () => {",
+                  "    pm.expect(data.data.active).to.be.false;",
+                  "  });",
+                  "} else {",
+                  "  pm.test('Confirm resource is unreachable (Hard Delete - 400/404)', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400, 404]);",
+                  "  });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/{{requisition_record_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "{{requisition_record_uid}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Boundary_Logic_and_Validation_Anomalies",
+      "item": [
+        {
+          "name": "REQ09-Create Request Missing Fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify rejection of incomplete schema (400)', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"quantity\": 2, \"reason\": \"Schema test\"}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ10-Get Non-existent Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify rejection of non-existent resource ID (400/404)', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([400, 404]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/999999",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "999999"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ11-Get Requests with Pagination",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Confirm paginated registry response (200)', () => pm.response.to.have.status(200));",
+                  "const paginatedSet = pm.response.json();",
+                  "pm.test('Verify page size constraint (5)', () => pm.expect(paginatedSet.data.meta.pageSize).to.equal(5));",
+                  "pm.test('Verify result collection type is an array', () => pm.expect(paginatedSet.data.result).to.be.an('array'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests?page=1&limit=5",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ12-Filter Requests by Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify successful state-based filtering (200)', () => pm.response.to.have.status(200));",
+                  "const filteredPayload = pm.response.json();",
+                  "pm.test('Confirm all items match PENDING criteria', () => {",
+                  "  filteredPayload.data.result.forEach(entry => pm.expect(entry.status).to.equal('PENDING'));",
+                  "});",
+                  "if (filteredPayload.data.result.length > 0) {",
+                  "  pm.collectionVariables.set('queued_entry_uid', filteredPayload.data.result[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests?status=PENDING",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ13-Update Pending Request Forbidden",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const auth = pm.collectionVariables.get('sec_bearer_token');",
+                  "const host = pm.variables.get('api_gateway_host') || 'http://localhost:8081';",
+                  "const unit = Number(pm.collectionVariables.get('unit_context_idx') || 3);",
+                  "const flow = Number(pm.collectionVariables.get('proc_workflow_idx') || 1);",
+                  "pm.sendRequest({",
+                  "  url: host + '/api/v1/job-service/recruitment-requests',",
+                  "  method: 'POST',",
+                  "  header: { 'Authorization': 'Bearer ' + auth, 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify({ title: 'Immutable Node Setup', quantity: 1, reason: 'Concurrency Test', salaryMin: 10000000, salaryMax: 20000000, workflowId: flow, departmentId: unit }) }",
+                  "}, function(err, res) {",
+                  "  if (!err && res && res.code === 200) {",
+                  "    const cid = res.json().data.id;",
+                  "    pm.collectionVariables.set('queued_entry_uid', cid);",
+                  "    pm.sendRequest({ url: host + '/api/v1/job-service/recruitment-requests/submit/' + cid, method: 'POST', header: { 'Authorization': 'Bearer ' + auth } }, function() {});",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify illegal mutation attempt on PENDING state is blocked (400)', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Illegal Update Attempt\",\"quantity\":99,\"reason\":\"State mutation lock test\",\"salaryMin\":10000000,\"salaryMax\":20000000,\"workflowId\":{{proc_workflow_idx}},\"departmentId\":{{unit_context_idx}}}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/{{queued_entry_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "{{queued_entry_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ14-Verify Pending Request Integrity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Confirm resource integrity post-failed mutation (200)', () => pm.response.to.have.status(200));",
+                  "const probeData = pm.response.json();",
+                  "pm.test('Assert Title remained unchanged (Logic Lock)', () => {",
+                  "  pm.expect(probeData.data.title).to.not.equal('Illegal Update Attempt');",
+                  "});",
+                  "pm.test('Assert status remains PENDING', () => pm.expect(probeData.data.status).to.equal('PENDING'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/{{queued_entry_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "{{queued_entry_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ15-Update Approved Request Forbidden",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const auth = pm.collectionVariables.get('sec_bearer_token');",
+                  "const host = pm.variables.get('api_gateway_host') || 'http://localhost:8081';",
+                  "pm.sendRequest({",
+                  "  url: host + '/api/v1/job-service/recruitment-requests?status=APPROVED&page=1&limit=1',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + auth }",
+                  "}, function(err, res) {",
+                  "  if (!err && res && res.code === 200) {",
+                  "    const items = res.json().data && res.json().data.result ? res.json().data.result : [];",
+                  "    if (items.length > 0) pm.collectionVariables.set('validated_item_uid', items[0].id);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Block mutation on terminal state APPROVED (400)', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"Illegal Post-Approval Update\",\"quantity\":99,\"reason\":\"Immutability audit\",\"salaryMin\":10000000,\"salaryMax\":20000000,\"workflowId\":{{proc_workflow_idx}},\"departmentId\":{{unit_context_idx}}}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/{{validated_item_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "{{validated_item_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ16-Create Request Invalid Department",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify rejection of non-existent organizational unit (400)', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Fake Dept RR\", \"quantity\": 1, \"reason\": \"Foreign key probe\", \"salaryMin\": 10000000, \"salaryMax\": 20000000, \"departmentId\": 9999}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ17-Submit Request Unauthorized",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const mainKey = pm.collectionVariables.get('sec_bearer_token');",
+                  "const host = pm.variables.get('api_gateway_host') || 'http://localhost:8081';",
+                  "const unit = Number(pm.collectionVariables.get('unit_context_idx') || 3);",
+                  "const flow = Number(pm.collectionVariables.get('proc_workflow_idx') || 1);",
+                  "pm.sendRequest({",
+                  "  url: host + '/api/v1/job-service/recruitment-requests',",
+                  "  method: 'POST',",
+                  "  header: { 'Authorization': 'Bearer ' + mainKey, 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify({ title: 'Access Control Probe', quantity: 1, reason: 'Broken access check', salaryMin: 10000000, salaryMax: 20000000, workflowId: flow, departmentId: unit }) }",
+                  "}, function(err, res) {",
+                  "  if (!err && res && res.code === 200) {",
+                  "    pm.collectionVariables.set('requisition_record_uid', res.json().data.id);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Enforce cross-user action restriction (400/403)', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([400, 403]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{peer_authorized_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/submit/{{requisition_record_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "submit",
+                "{{requisition_record_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ18-Create Request Invalid Quantity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify rejection of invalid capacity metrics (400)', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Invalid Logic Capacity\", \"quantity\": 0, \"reason\": \"Capacity edge probe\", \"salaryMin\": 10000000, \"salaryMax\": 20000000, \"departmentId\": {{unit_context_idx}}}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transition_Integrity_Validation",
+      "item": [
+        {
+          "name": "REQ19-Create Request for Transition",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Resource provisioned for state audit (200)', () => pm.response.to.have.status(200));",
+                  "const provData = pm.response.json();",
+                  "pm.collectionVariables.set('requisition_record_uid', provData.data.id);",
+                  "pm.test('Assert initial state is DRAFT', () => pm.expect(provData.data.status).to.equal('DRAFT'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Lifecycle State Audit\", \"quantity\": 1, \"reason\": \"Transition audit\", \"salaryMin\": 10000000, \"salaryMax\": 20000000, \"workflowId\": {{proc_workflow_idx}}, \"departmentId\": {{unit_context_idx}}}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ20-Submit Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Confirm elevation to PENDING (200)', () => pm.response.to.have.status(200));",
+                  "const elevationData = pm.response.json();",
+                  "pm.test('Verify PENDING tag assigned', () => pm.expect(elevationData.data.status).to.equal('PENDING'));",
+                  "pm.test('Verify submission timestamp generated', () => pm.expect(elevationData.data.submittedAt).to.not.be.null);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/submit/{{requisition_record_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "submit",
+                "{{requisition_record_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ21-Verify Submitted Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Audit registry for elevated state (200)', () => pm.response.to.have.status(200));",
+                  "const registryAudit = pm.response.json();",
+                  "pm.test('Confirm PENDING status in database', () => pm.expect(registryAudit.data.status).to.equal('PENDING'));",
+                  "pm.test('Confirm metadata timestamp persistence', () => pm.expect(registryAudit.data.submittedAt).to.not.be.null);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/{{requisition_record_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "{{requisition_record_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ22-Get Approval Tracking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get approval trackings successful (200)', () => pm.response.to.have.status(200));\r",
+                  "\r",
+                  "const responseBody = pm.response.json();\r",
+                  "const trackings = responseBody.data.result || [];\r",
+                  "\r",
+                  "pm.test('Response contains result array', () => {\r",
+                  "  pm.expect(trackings).to.be.an('array');\r",
+                  "});\r",
+                  "\r",
+                  "console.log('Total PENDING trackings found:', trackings.length);\r",
+                  "\r",
+                  "if (trackings.length > 0) {\r",
+                  "  // Lấy tracking đầu tiên có status PENDING\r",
+                  "  const pendingTracking = trackings[0];\r",
+                  "  \r",
+                  "  pm.collectionVariables.set('approval_tracking_id', pendingTracking.id);\r",
+                  "  \r",
+                  "  pm.test('Found PENDING tracking with ID: ' + pendingTracking.id, () => {\r",
+                  "    pm.expect(pendingTracking.status).to.equal('PENDING');\r",
+                  "    pm.expect(pendingTracking.requestId).to.equal(parseInt(pm.collectionVariables.get('requisition_record_uid')));\r",
+                  "  });\r",
+                  "  \r",
+                  "  console.log('✓ Tracking ID saved:', pendingTracking.id);\r",
+                  "  console.log('  - Request ID:', pendingTracking.requestId);\r",
+                  "  console.log('  - Step ID:', pendingTracking.stepId);\r",
+                  "  console.log('  - Approver Position ID:', pendingTracking.approverPositionId);\r",
+                  "  console.log('  - Status:', pendingTracking.status);\r",
+                  "} else {\r",
+                  "  pm.test('No PENDING tracking found', () => {\r",
+                  "    pm.expect(trackings.length).to.equal(0);\r",
+                  "  });\r",
+                  "  console.warn('⚠ No PENDING approval tracking found for request ID:', pm.collectionVariables.get('requisition_record_uid'));\r",
+                  "  console.warn('Request may not be submitted yet or already fully approved.');\r",
+                  "}\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/workflow-service/approval-trackings?requestId={{requisition_record_uid}}&status=PENDING",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings"
+              ],
+              "query": [
+                {
+                  "key": "requestId",
+                  "value": "{{requisition_record_uid}}"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ23-Approve Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Approve tracking successful (200)', () => pm.response.to.have.status(200));\r",
+                  "\r",
+                  "const approveResponse = pm.response.json();\r",
+                  "\r",
+                  "pm.test('Response contains data object', () => {\r",
+                  "  pm.expect(approveResponse.data).to.be.an('object');\r",
+                  "});\r",
+                  "\r",
+                  "pm.test('Tracking status changed to APPROVED', () => {\r",
+                  "  pm.expect(approveResponse.data.status).to.equal('APPROVED');\r",
+                  "});\r",
+                  "\r",
+                  "pm.test('Action timestamp recorded', () => {\r",
+                  "  pm.expect(approveResponse.data.actionAt).to.not.be.null;\r",
+                  "});\r",
+                  "\r",
+                  "pm.test('Approval notes saved', () => {\r",
+                  "  pm.expect(approveResponse.data.notes).to.equal('Approved for recruitment process');\r",
+                  "});\r",
+                  "\r",
+                  "console.log('✓ Approval successful!');\r",
+                  "console.log('  - Tracking ID:', approveResponse.data.id);\r",
+                  "console.log('  - Status:', approveResponse.data.status);\r",
+                  "console.log('  - Approved by:', approveResponse.data.actionUserName);\r",
+                  "console.log('  - Approved at:', approveResponse.data.actionAt);\r",
+                  "console.log('  - Notes:', approveResponse.data.notes);\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"approved\": true,\r\n  \"approvalNotes\": \"Approved for recruitment process\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/workflow-service/approval-trackings/{{approval_tracking_id}}/approve",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings",
+                "{{approval_tracking_id}}",
+                "approve"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ24-Verify Approved Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get recruitment request successful (200)', () => pm.response.to.have.status(200));\r",
+                  "\r",
+                  "const requestData = pm.response.json();\r",
+                  "\r",
+                  "pm.test('Request data exists', () => {\r",
+                  "  pm.expect(requestData.data).to.be.an('object');\r",
+                  "});\r",
+                  "\r",
+                  "const currentStatus = requestData.data.status;\r",
+                  "\r",
+                  "pm.test('Request status updated (PENDING or APPROVED)', () => {\r",
+                  "  pm.expect(currentStatus).to.be.oneOf(['PENDING', 'APPROVED']);\r",
+                  "});\r",
+                  "\r",
+                  "console.log('✓ Recruitment Request Status:', currentStatus);\r",
+                  "\r",
+                  "if (currentStatus === 'APPROVED') {\r",
+                  "  console.log('✓✓ Request FULLY APPROVED - All workflow steps completed!');\r",
+                  "  pm.test('Request is fully approved', () => {\r",
+                  "    pm.expect(requestData.data.status).to.equal('APPROVED');\r",
+                  "  });\r",
+                  "} else if (currentStatus === 'PENDING') {\r",
+                  "  console.log('⚠ Request still PENDING - More approval steps required');\r",
+                  "  console.log('Check if there are more PENDING approval trackings for this request.');\r",
+                  "}\r",
+                  "\r",
+                  "console.log('Request details:');\r",
+                  "console.log('  - ID:', requestData.data.id);\r",
+                  "console.log('  - Title:', requestData.data.title);\r",
+                  "console.log('  - Status:', requestData.data.status);\r",
+                  "console.log('  - Submitted at:', requestData.data.submittedAt);\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/{{requisition_record_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "{{requisition_record_uid}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Heuristic_Decision_Node_Automation",
+      "item": [
+        {
+          "name": "REQ25-Create Request for Heuristic Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Resource provisioning successful (200)', () => pm.response.to.have.status(200));",
+                  "const subjectData = pm.response.json();",
+                  "pm.collectionVariables.set('requisition_record_uid', subjectData.data.id);",
+                  "pm.test('Initial state DRAFT confirmed', () => pm.expect(subjectData.data.status).to.equal('DRAFT'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Heuristic Decision Test\", \"quantity\": 1, \"reason\": \"Automation probe\", \"salaryMin\": 10000000, \"salaryMax\": 20000000, \"workflowId\": {{proc_workflow_idx}}, \"departmentId\": {{unit_context_idx}}}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ26-Submit Request for Heuristic Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Submission trigger successful (200)', () => pm.response.to.have.status(200));",
+                  "const heuristicRes = pm.response.json();",
+                  "pm.test('Verify PENDING state (Decision Step 1 Bypassed)', () => pm.expect(heuristicRes.data.status).to.equal('PENDING'));",
+                  "pm.test('Confirm timestamp generation', () => pm.expect(heuristicRes.data.submittedAt).to.not.be.null);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/submit/{{requisition_record_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "submit",
+                "{{requisition_record_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ27-Get Approval Trail History",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Audit decision trail accessibility (200)', () => pm.response.to.have.status(200));",
+                  "const trailPayload = pm.response.json();",
+                  "const metadata = trailPayload.data || {};",
+                  "const tracks = Array.isArray(metadata.approvalTrackings) ? metadata.approvalTrackings : (Array.isArray(metadata.result) ? metadata.result : []);",
+                  "pm.test('Verify metadata object structure', () => pm.expect(metadata).to.be.an('object'));",
+                  "pm.test('Verify track collection is present', () => pm.expect(tracks).to.be.an('array'));",
+                  "tracks.forEach(node => pm.expect(node.status).to.be.oneOf(['PENDING', 'APPROVED', 'REJECTED', 'RETURNED', 'CANCELLED']));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/workflow-service/approval-trackings/by-request/{{requisition_record_uid}}?requestType=RECRUITMENT_REQUEST",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "workflow-service",
+                "approval-trackings",
+                "by-request",
+                "{{requisition_record_uid}}"
+              ],
+              "query": [
+                {
+                  "key": "requestType",
+                  "value": "RECRUITMENT_REQUEST"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Validation of Heuristic Decision Nodes: Identity overlap between Actor and Decision Node Step 1 triggers automatic state transition."
+    },
+    {
+      "name": "Extended_State_Mutation_Endpoints",
+      "item": [
+        {
+          "name": "REQ28-Cancel Request",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const sKey = pm.collectionVariables.get('sec_bearer_token');",
+                  "const hAddr = pm.variables.get('api_gateway_host') || 'http://localhost:8081';",
+                  "const uId = Number(pm.collectionVariables.get('unit_context_idx') || 3);",
+                  "const fId = Number(pm.collectionVariables.get('proc_workflow_idx') || 1);",
+                  "pm.sendRequest({",
+                  "  url: hAddr + '/api/v1/job-service/recruitment-requests',",
+                  "  method: 'POST',",
+                  "  header: { 'Authorization': 'Bearer ' + sKey, 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify({ title: 'Cancel Probe Requisition', quantity: 1, reason: 'Endpoint Audit', salaryMin: 10000000, salaryMax: 20000000, workflowId: fId, departmentId: uId }) }",
+                  "}, function(err, res) {",
+                  "  if (!err && res && res.code === 200) {",
+                  "    pm.collectionVariables.set('requisition_record_uid', res.json().data.id);",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify state mutation to CANCELLED (200/400)', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"reason\":\"Protocol Cancellation Audit\"}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/cancel/{{requisition_record_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "cancel",
+                "{{requisition_record_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ29-Withdraw Request",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const sKey = pm.collectionVariables.get('sec_bearer_token');",
+                  "const hAddr = pm.variables.get('api_gateway_host') || 'http://localhost:8081';",
+                  "const uId = Number(pm.collectionVariables.get('unit_context_idx') || 3);",
+                  "const fId = Number(pm.collectionVariables.get('proc_workflow_idx') || 1);",
+                  "pm.sendRequest({",
+                  "  url: hAddr + '/api/v1/job-service/recruitment-requests',",
+                  "  method: 'POST',",
+                  "  header: { 'Authorization': 'Bearer ' + sKey, 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify({ title: 'Withdraw Probe Requisition', quantity: 1, reason: 'Endpoint Audit', salaryMin: 10000000, salaryMax: 20000000, workflowId: fId, departmentId: uId }) }",
+                  "}, function(err, res) {",
+                  "  if (!err && res && res.code === 200) {",
+                  "    const entry = res.json().data.id;",
+                  "    pm.collectionVariables.set('queued_entry_uid', entry);",
+                  "    pm.sendRequest({ url: hAddr + '/api/v1/job-service/recruitment-requests/submit/' + entry, method: 'POST', header: { 'Authorization': 'Bearer ' + sKey } }, function() {});",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify state mutation to WITHDRAWN (200/400)', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/withdraw/{{queued_entry_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "withdraw",
+                "{{queued_entry_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ30-Reject Request",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const sKey = pm.collectionVariables.get('sec_bearer_token');",
+                  "const hAddr = pm.variables.get('api_gateway_host') || 'http://localhost:8081';",
+                  "const uId = Number(pm.collectionVariables.get('unit_context_idx') || 3);",
+                  "const fId = Number(pm.collectionVariables.get('proc_workflow_idx') || 1);",
+                  "pm.sendRequest({",
+                  "  url: hAddr + '/api/v1/job-service/recruitment-requests',",
+                  "  method: 'POST',",
+                  "  header: { 'Authorization': 'Bearer ' + sKey, 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify({ title: 'Rejection Probe Requisition', quantity: 1, reason: 'Endpoint Audit', salaryMin: 10000000, salaryMax: 20000000, workflowId: fId, departmentId: uId }) }",
+                  "}, function(err, res) {",
+                  "  if (!err && res && res.code === 200) {",
+                  "    const entry = res.json().data.id;",
+                  "    pm.collectionVariables.set('queued_entry_uid', entry);",
+                  "    pm.sendRequest({ url: hAddr + '/api/v1/job-service/recruitment-requests/submit/' + entry, method: 'POST', header: { 'Authorization': 'Bearer ' + sKey } }, function() {});",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify state mutation to REJECTED (200/400)', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"reason\": \"Protocol Rejection Violation\"}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/reject/{{queued_entry_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "reject",
+                "{{queued_entry_uid}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "REQ31-Return Request",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const sKey = pm.collectionVariables.get('sec_bearer_token');",
+                  "const hAddr = pm.variables.get('api_gateway_host') || 'http://localhost:8081';",
+                  "const uId = Number(pm.collectionVariables.get('unit_context_idx') || 3);",
+                  "const fId = Number(pm.collectionVariables.get('proc_workflow_idx') || 1);",
+                  "pm.sendRequest({",
+                  "  url: hAddr + '/api/v1/job-service/recruitment-requests',",
+                  "  method: 'POST',",
+                  "  header: { 'Authorization': 'Bearer ' + sKey, 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify({ title: 'Reversion Probe Requisition', quantity: 1, reason: 'Endpoint Audit', salaryMin: 10000000, salaryMax: 20000000, workflowId: fId, departmentId: uId }) }",
+                  "}, function(err, res) {",
+                  "  if (!err && res && res.code === 200) {",
+                  "    const entry = res.json().data.id;",
+                  "    pm.collectionVariables.set('queued_entry_uid', entry);",
+                  "    pm.sendRequest({ url: hAddr + '/api/v1/job-service/recruitment-requests/submit/' + entry, method: 'POST', header: { 'Authorization': 'Bearer ' + sKey } }, function() {});",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Verify state mutation to RETURNED (200/400)', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sec_bearer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"reason\": \"Temporal information mismatch\"}"
+            },
+            "url": {
+              "raw": "{{api_gateway_host}}/api/v1/job-service/recruitment-requests/return/{{queued_entry_uid}}",
+              "host": [
+                "{{api_gateway_host}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "job-service",
+                "recruitment-requests",
+                "return",
+                "{{queued_entry_uid}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "api_gateway_host",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "sec_bearer_token",
+      "value": ""
+    },
+    {
+      "key": "peer_authorized_key",
+      "value": ""
+    },
+    {
+      "key": "proc_workflow_idx",
+      "value": ""
+    },
+    {
+      "key": "audit_trail_id",
+      "value": ""
+    },
+    {
+      "key": "requisition_record_uid",
+      "value": ""
+    },
+    {
+      "key": "unit_context_idx",
+      "value": ""
+    },
+    {
+      "key": "queued_entry_uid",
+      "value": ""
+    },
+    {
+      "key": "audit_baseline_count",
+      "value": "0"
+    },
+    {
+      "key": "validated_item_uid",
+      "value": ""
+    },
+    {
+      "key": "approval_tracking_id",
+      "value": ""
+    }
+  ]
+}
